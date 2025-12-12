@@ -23,7 +23,51 @@ function initSubmitPage() {
 
   // 初始化：添加第一个竞赛模块
   addCompetitionModule();
+// 添加调试信息
+console.log('script.js 开始加载');
 
+// 检查关键元素是否存在的函数
+function checkPageElements() {
+  console.log('检查页面元素...');
+  
+  if (document.title.includes('竞赛获奖情况统计')) {
+    const importantElements = ['competitionModules', 'addModule', 'awardForm'];
+    importantElements.forEach(id => {
+      const el = document.getElementById(id);
+      console.log(`元素 #${id}:`, el ? '存在' : '不存在');
+    });
+    
+    // 测试竞赛模块功能
+    const modulesContainer = document.getElementById('competitionModules');
+    if (modulesContainer) {
+      console.log('竞赛模块容器已找到，准备添加第一个模块');
+      // 立即添加一个模块
+      setTimeout(() => {
+        addCompetitionModule();
+        console.log('第一个竞赛模块已添加');
+      }, 100);
+    }
+  }
+}
+
+// 修改DOMContentLoaded事件监听器
+document.addEventListener('DOMContentLoaded', function () {
+  console.log('DOM加载完成，当前页面:', document.title);
+  
+  // 先检查页面元素
+  checkPageElements();
+  
+  // 再初始化页面功能
+  if (document.title.includes('竞赛获奖情况统计')) {
+    console.log('初始化提交页面...');
+    initSubmitPage();
+  } else if (document.title.includes('竞赛获奖数据浏览')) {
+    console.log('初始化浏览页面...');
+    initBrowsePage();
+  }
+  
+  console.log('页面初始化完成');
+});
   // 事件监听
   addModuleBtn.addEventListener('click', () => {
     addCompetitionModule();
