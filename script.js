@@ -1,365 +1,610 @@
-// script.js - 前端页面交互逻辑
-// 注意：此文件依赖于 supabase.js 中定义的全局函数。
-
-document.addEventListener('DOMContentLoaded', function () {
-  // 根据页面标题初始化不同功能
-  if (document.title.includes('竞赛获奖情况统计')) {
-    initSubmitPage();
-  } else if (document.title.includes('竞赛获奖数据浏览')) {
-    initBrowsePage();
-  }
-});
-
-// ==================== 提交首页逻辑 ====================
-function initSubmitPage() {
-  const competitionModules = document.getElementById('competitionModules');
-  const addModuleBtn = document.getElementById('addModule');
-  const awardForm = document.getElementById('awardForm');
-  const resetBtn = document.getElementById('resetBtn');
-  const successModal = document.getElementById('successModal');
-  const modalClose = successModal.querySelector('.close');
-  const resetFormBtn = document.getElementById('resetFormBtn');
-  const browseDataBtn = document.getElementById('browseDataBtn');
-
-  // 初始化：添加第一个竞赛模块
-  addCompetitionModule();
-// 添加调试信息
+// script.js - 修复版本
 console.log('script.js 开始加载');
 
-// 检查关键元素是否存在的函数
-function checkPageElements() {
-  console.log('检查页面元素...');
-  
-  if (document.title.includes('竞赛获奖情况统计')) {
-    const importantElements = ['competitionModules', 'addModule', 'awardForm'];
-    importantElements.forEach(id => {
-      const el = document.getElementById(id);
-      console.log(`元素 #${id}:`, el ? '存在' : '不存在');
+// ==================== 全局辅助函数 ====================
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+function showErrorSummary(errorMessages) {
+    let errorSummary = document.getElementById('errorSummary');
+    if (!errorSummary) {
+        errorSummary = document.createElement('div');
+        errorSummary.id = 'errorSummary';
+        errorSummary.className = 'error-summary';
+        document.getElementById('awardForm').prepend(errorSummary);
+    }
+    
+    errorSummary.innerHTML = `
+        <div class="error-header">
+            <i class="error-icon">⚠️</i>
+            <h3>请完善以下信息后再提交：</h3>
+        </div>
+        <ul class="error-list">
+            ${errorMessages.map(msg => `<li>${msg}</li>`).join('')}
+        </ul>
+    `;
+    errorSummary.style.display = 'block';
+}
+
+function clearErrorSummary() {
+    const errorSummary = document.getElementById('errorSummary');
+    if (errorSummary) {
+        errorSummary.style.display = 'none';
+    }
+}
+
+// ==================== 竞赛模块管理 ====================
+let moduleCounter = 0;
+
+function addCompetitionModule() {
+    const competitionModules = document.getElementById('competitionModules');
+    const moduleId = moduleCounter++;
+    
+    const moduleDiv = document.createElement('div');
+    moduleDiv.className = 'competition-module';
+    moduleDiv.dataset.moduleId = moduleId;
+    
+    moduleDiv.innerHTML = `
+        <h3>竞赛 ${moduleId + 1} <small>(点击展开/收起)</small></h3>
+        <button type="button" class="delete-module" onclick="deleteModule(this)">×</button>
+        
+        <div class="module-content" style="display: block;">
+            <div class="form-group">
+                <label for="grade-${moduleId}">获奖年级 *</label>
+                <select id="grade-${moduleId}" required>
+                    <option value="">请选择年级</option>
+                    <option value="大一">大一</option>
+                    <option value="大二">大二</option>
+                    <option value="大三">大三</option>
+                    <option value="大四">大四</option>
+                </select>
+                <span class="error-message" id="gradeError-${moduleId}"></span>
+            </div>
+            <div class="form-group">
+                <label for="competition-${moduleId}">竞赛名称 *</label>
+                <input type="text" id="competition-${moduleId}" required placeholder="如：全国大学生数学建模竞赛">
+                <span class="error-message" id="competitionError-${moduleId}"></span>
+            </div>
+            <div class="form-group">
+                <label for="level-${moduleId}">竞赛级别 *</label>
+                <select id="level-${moduleId}" required>
+                    <option value="">请选择级别</option>
+                    <option value="校级">校级</option>
+                    <option value="省级">省级</option>
+                    <option value="国家级">国家级</option>
+                </select>
+                <span class="error-message" id="levelError-${moduleId}"></span>
+            </div>
+            <div class="form-group">
+                <label for="award-${moduleId}">获奖等级 *</label>
+                <select id="award-${moduleId}" required>
+                    <option value="">请选择等级</option>
+                    <option value="特等奖">特等奖</option>
+                    <option value="一等奖">一等奖</option>
+                    <option value="二等奖">二等奖</option>
+                    <option value="三等奖">三等奖</option>
+                </select>
+                <span class="error-message" id="awardError-${moduleId}"></span>
+            </div>
+            <div class="form-group">
+                <label for="certificate-${moduleId}">获奖凭证（图片）</label>
+                <input type="file" id="certificate-${moduleId}" accept="image/*">
+                <div class="image-preview" id="preview-${moduleId}"></div>
+            </div>
+        </div>
+    `;
+    
+    competitionModules.appendChild(moduleDiv);
+    
+    // 添加模块标题点击事件（展开/收起）
+    const title = moduleDiv.querySelector('h3');
+    const content = moduleDiv.querySelector('.module-content');
+    title.style.cursor = 'pointer';
+    title.addEventListener('click', () => {
+        const isVisible = content.style.display === 'block';
+        content.style.display = isVisible ? 'none' : 'block';
     });
     
-    // 测试竞赛模块功能
-    const modulesContainer = document.getElementById('competitionModules');
-    if (modulesContainer) {
-      console.log('竞赛模块容器已找到，准备添加第一个模块');
-      // 立即添加一个模块
-      setTimeout(() => {
-        addCompetitionModule();
-        console.log('第一个竞赛模块已添加');
-      }, 100);
-    }
-  }
-}
-
-// 修改DOMContentLoaded事件监听器
-document.addEventListener('DOMContentLoaded', function () {
-  console.log('DOM加载完成，当前页面:', document.title);
-  
-  // 先检查页面元素
-  checkPageElements();
-  
-  // 再初始化页面功能
-  if (document.title.includes('竞赛获奖情况统计')) {
-    console.log('初始化提交页面...');
-    initSubmitPage();
-  } else if (document.title.includes('竞赛获奖数据浏览')) {
-    console.log('初始化浏览页面...');
-    initBrowsePage();
-  }
-  
-  console.log('页面初始化完成');
-});
-  // 事件监听
-  addModuleBtn.addEventListener('click', () => {
-    addCompetitionModule();
-    clearErrorSummary();
-  });
-
-  awardForm.addEventListener('submit', handleFormSubmit);
-  resetBtn.addEventListener('click', handleFormReset);
-  modalClose.addEventListener('click', () => successModal.style.display = 'none');
-  resetFormBtn.addEventListener('click', () => {
-    successModal.style.display = 'none';
-    handleFormReset();
-  });
-  browseDataBtn.addEventListener('click', () => {
-    window.location.href = 'browse.html';
-  });
-
-  // 点击模态框外部关闭
-  window.addEventListener('click', (e) => {
-    if (e.target === successModal) successModal.style.display = 'none';
-  });
-}
-
-// 处理表单提交
-async function handleFormSubmit(event) {
-  event.preventDefault();
-  console.log('开始处理表单提交...');
-
-  if (!validateForm()) {
-    console.log('表单验证未通过');
-    return;
-  }
-
-  // 收集数据
-  const studentName = document.getElementById('name').value.trim();
-  const studentMajor = document.getElementById('major').value;
-  const competitions = collectCompetitionData();
-
-  // 显示加载状态（可选）
-  const submitBtn = document.getElementById('submitBtn');
-  const originalText = submitBtn.textContent;
-  submitBtn.textContent = '提交中...';
-  submitBtn.disabled = true;
-
-  try {
-    // 调用supabase.js中的函数提交到云端
-    const result = await window.submitAwardRecord(studentName, studentMajor, competitions);
-    console.log('提交结果:', result);
-
-    if (result.success) {
-      // 显示成功模态框
-      document.getElementById('successModal').style.display = 'block';
-    } else {
-      alert('错误：' + result.message);
-    }
-  } catch (error) {
-    console.error('提交过程异常:', error);
-    alert('提交过程中发生未知错误，请检查控制台。');
-  } finally {
-    // 恢复按钮状态
-    submitBtn.textContent = originalText;
-    submitBtn.disabled = false;
-  }
-}
-
-// 收集所有竞赛模块的数据
-function collectCompetitionData() {
-  const modules = document.querySelectorAll('.competition-module');
-  const competitions = [];
-
-  modules.forEach((module, index) => {
-    competitions.push({
-      grade: document.getElementById(`grade-${index}`).value,
-      competitionName: document.getElementById(`competition-${index}`).value.trim(),
-      level: document.getElementById(`level-${index}`).value,
-      award: document.getElementById(`award-${index}`).value,
-      certificateUrl: null // 当前版本图片上传功能暂未实现
+    // 添加图片预览
+    const fileInput = moduleDiv.querySelector(`#certificate-${moduleId}`);
+    const preview = moduleDiv.querySelector(`#preview-${moduleId}`);
+    
+    fileInput.addEventListener('change', function() {
+        previewImage(this, moduleId);
     });
-  });
-
-  return competitions;
+    
+    console.log(`添加竞赛模块 #${moduleId}`);
+    return moduleId;
 }
 
-// 表单验证（与原版基本相同，可复用）
-function validateForm() {
-  let isValid = true;
-  const errors = [];
-
-  // ... 这里是你原有的validateForm函数代码，无需改动 ...
-  // 只需确保它检查姓名、专业和各竞赛模块的必填项，并在出错时调用 showErrorSummary(errors)
-
-  // 示例验证（请替换为你的完整逻辑）
-  const name = document.getElementById('name').value.trim();
-  if (!name) {
-    errors.push('请输入姓名');
-    isValid = false;
-  }
-  // ... 其他验证 ...
-
-  if (!isValid) {
-    showErrorSummary(errors);
-  }
-  return isValid;
-}
-
-// 错误汇总显示（与原版相同）
-function showErrorSummary(errorMessages) {
-  // ... 这里是你原有的 showErrorSummary 函数代码 ...
-}
-function clearErrorSummary() {
-  // ... 这里是你原有的 clearErrorSummary 函数代码 ...
-}
-
-// 重置表单
-function handleFormReset() {
-  document.getElementById('awardForm').reset();
-  const modulesContainer = document.getElementById('competitionModules');
-  modulesContainer.innerHTML = '';
-  addCompetitionModule();
-  clearErrorSummary();
-  console.log('表单已重置');
-}
-
-// 添加/删除竞赛模块、图片预览等辅助函数（与你原版基本相同）
-function addCompetitionModule() {
-  // ... 这里是你原有的 addCompetitionModule 函数代码，无需改动 ...
-}
-function deleteModule(btn) {
-  // ... 这里是你原有的 deleteModule 函数代码，无需改动 ...
-}
-function previewImage(input, moduleId) {
-  // ... 这里是你原有的 previewImage 函数代码，无需改动 ...
-}
-
-// ==================== 数据浏览页逻辑 ====================
-function initBrowsePage() {
-  const verifyBtn = document.getElementById('verifyBtn');
-  const filterBtn = document.getElementById('filterBtn');
-  const resetFilterBtn = document.getElementById('resetFilterBtn');
-  const exportExcelBtn = document.getElementById('exportExcelBtn');
-
-  // 检查是否已通过验证（简单版，刷新页面需重新登录）
-  // 实际应用中可将token存入sessionStorage
-
-  verifyBtn.addEventListener('click', handleAdminLogin);
-  filterBtn.addEventListener('click', loadAndDisplayData);
-  resetFilterBtn.addEventListener('click', resetFiltersAndLoad);
-  exportExcelBtn.addEventListener('click', exportToExcel);
-
-  // 初始化图片查看器
-  initImageViewer();
-}
-
-// 处理管理员登录
-async function handleAdminLogin() {
-  const passwordInput = document.getElementById('password').value;
-  const errorElement = document.getElementById('passwordError');
-
-  if (!passwordInput) {
-    errorElement.textContent = '请输入密码';
-    return;
-  }
-
-  const verifyBtn = document.getElementById('verifyBtn');
-  verifyBtn.textContent = '验证中...';
-  verifyBtn.disabled = true;
-
-  const result = await window.verifyAdminPassword(passwordInput);
-
-  if (result.success) {
-    // 登录成功，显示数据浏览区
-    document.getElementById('passwordSection').style.display = 'none';
-    document.getElementById('browseSection').style.display = 'block';
-    // 加载初始数据
-    loadAndDisplayData();
-  } else {
-    errorElement.textContent = result.message;
-  }
-
-  verifyBtn.textContent = '验证';
-  verifyBtn.disabled = false;
-}
-
-// 加载并显示数据
-async function loadAndDisplayData() {
-  const filters = getCurrentFilters();
-  console.log('正在加载数据，筛选条件:', filters);
-
-  const tableBody = document.querySelector('#awardTable tbody');
-  tableBody.innerHTML = '<tr><td colspan="10" style="text-align:center;">加载中...</td></tr>';
-
-  const data = await window.fetchFilteredData(filters);
-  displayDataInTable(data);
-}
-
-// 获取当前筛选条件
-function getCurrentFilters() {
-  return {
-    name: document.getElementById('filterName').value,
-    competition: document.getElementById('filterCompetition').value,
-    level: document.getElementById('filterLevel').value,
-    grade: document.getElementById('filterGrade').value,
-    award: document.getElementById('filterAward').value
-  };
-}
-
-// 将数据填充到表格
-function displayDataInTable(data) {
-  const tableBody = document.querySelector('#awardTable tbody');
-  const noDataMsg = document.getElementById('noDataMessage');
-  const resultCountSpan = document.querySelector('#resultCount span');
-
-  tableBody.innerHTML = ''; // 清空表格
-  resultCountSpan.textContent = data.length;
-
-  if (data.length === 0) {
-    noDataMsg.style.display = 'block';
-    return;
-  }
-  noDataMsg.style.display = 'none';
-
-  data.forEach(item => {
-    const row = document.createElement('tr');
-    // 处理证书图片显示
-    let certificateCell = '无';
-    if (item.certificate) {
-      certificateCell = `<img src="${item.certificate}" alt="证书" class="certificate-img" onclick="viewImage('${item.certificate}')">`;
+function deleteModule(button) {
+    const moduleDiv = button.closest('.competition-module');
+    const modulesContainer = document.getElementById('competitionModules');
+    
+    if (modulesContainer.children.length > 1) {
+        moduleDiv.remove();
+        // 重新编号
+        renumberModules();
+    } else {
+        alert('至少需要保留一个竞赛信息模块！');
     }
-
-    row.innerHTML = `
-      <td>${escapeHtml(item.name)}</td>
-      <td>${escapeHtml(item.major)}</td>
-      <td>${escapeHtml(item.grade)}</td>
-      <td>${escapeHtml(item.competition)}</td>
-      <td>${escapeHtml(item.level)}</td>
-      <td>${escapeHtml(item.award)}</td>
-      <td>${certificateCell}</td>
-      <td>${item.submitTime}</td>
-      <td><button class="action-btn" onclick="editRecord(${item.recordId})">修改</button></td>
-      <td><button class="delete-btn" onclick="confirmDelete(${item.recordId})">删除</button></td>
-    `;
-    tableBody.appendChild(row);
-  });
 }
 
-// 重置筛选条件并加载数据
+function renumberModules() {
+    const modules = document.querySelectorAll('.competition-module');
+    modules.forEach((module, index) => {
+        const title = module.querySelector('h3');
+        title.innerHTML = `竞赛 ${index + 1} <small>(点击展开/收起)</small>`;
+        
+        // 更新所有ID
+        ['grade', 'competition', 'level', 'award', 'certificate', 'preview'].forEach(prefix => {
+            const oldId = `${prefix}-${module.dataset.moduleId}`;
+            const newId = `${prefix}-${index}`;
+            
+            const element = module.querySelector(`#${oldId}`);
+            if (element) {
+                element.id = newId;
+                element.name = newId;
+            }
+            
+            // 更新错误信息ID
+            const errorElement = module.querySelector(`#${oldId}Error`);
+            if (errorElement) {
+                errorElement.id = `${newId}Error`;
+            }
+        });
+        
+        module.dataset.moduleId = index;
+    });
+    moduleCounter = modules.length;
+}
+
+function previewImage(input, moduleId) {
+    const preview = document.getElementById(`preview-${moduleId}`);
+    
+    if (input.files && input.files[0]) {
+        const file = input.files[0];
+        
+        // 验证文件大小和类型
+        if (file.size > 5 * 1024 * 1024) {
+            alert('图片大小不能超过5MB');
+            input.value = '';
+            return;
+        }
+        
+        if (!file.type.match('image.*')) {
+            alert('请选择图片文件（JPG、PNG等）');
+            input.value = '';
+            return;
+        }
+        
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            preview.innerHTML = `<img src="${e.target.result}" alt="预览" style="max-width: 200px;">`;
+            preview.style.display = 'block';
+        };
+        reader.readAsDataURL(file);
+    }
+}
+
+// ==================== 表单验证 ====================
+function validateForm() {
+    let isValid = true;
+    const errors = [];
+    
+    // 清除之前的错误信息
+    document.querySelectorAll('.error-message').forEach(el => el.textContent = '');
+    
+    // 验证姓名
+    const name = document.getElementById('name').value.trim();
+    if (!name) {
+        document.getElementById('nameError').textContent = '请输入姓名';
+        errors.push('请输入姓名');
+        isValid = false;
+    }
+    
+    // 验证专业
+    const major = document.getElementById('major').value;
+    if (!major) {
+        document.getElementById('majorError').textContent = '请选择专业';
+        errors.push('请选择专业');
+        isValid = false;
+    }
+    
+    // 验证竞赛信息
+    const modules = document.querySelectorAll('.competition-module');
+    if (modules.length === 0) {
+        errors.push('请至少添加一个竞赛信息');
+        isValid = false;
+    } else {
+        modules.forEach((module, index) => {
+            const moduleNum = index + 1;
+            
+            // 验证年级
+            const grade = document.getElementById(`grade-${index}`)?.value;
+            if (!grade) {
+                document.getElementById(`gradeError-${index}`).textContent = '请选择年级';
+                errors.push(`竞赛${moduleNum}: 请选择获奖年级`);
+                isValid = false;
+            }
+            
+            // 验证竞赛名称
+            const competition = document.getElementById(`competition-${index}`)?.value.trim();
+            if (!competition) {
+                document.getElementById(`competitionError-${index}`).textContent = '请输入竞赛名称';
+                errors.push(`竞赛${moduleNum}: 请输入竞赛名称`);
+                isValid = false;
+            }
+            
+            // 验证竞赛级别
+            const level = document.getElementById(`level-${index}`)?.value;
+            if (!level) {
+                document.getElementById(`levelError-${index}`).textContent = '请选择级别';
+                errors.push(`竞赛${moduleNum}: 请选择竞赛级别`);
+                isValid = false;
+            }
+            
+            // 验证获奖等级
+            const award = document.getElementById(`award-${index}`)?.value;
+            if (!award) {
+                document.getElementById(`awardError-${index}`).textContent = '请选择等级';
+                errors.push(`竞赛${moduleNum}: 请选择获奖等级`);
+                isValid = false;
+            }
+        });
+    }
+    
+    if (!isValid) {
+        showErrorSummary(errors);
+    } else {
+        clearErrorSummary();
+    }
+    
+    return isValid;
+}
+
+function collectCompetitionData() {
+    const modules = document.querySelectorAll('.competition-module');
+    const competitions = [];
+    
+    modules.forEach((module, index) => {
+        const competition = {
+            grade: document.getElementById(`grade-${index}`)?.value || '',
+            competitionName: document.getElementById(`competition-${index}`)?.value.trim() || '',
+            level: document.getElementById(`level-${index}`)?.value || '',
+            award: document.getElementById(`award-${index}`)?.value || '',
+            certificateUrl: null
+        };
+        
+        // 处理图片上传（简化版，暂不实现）
+        competitions.push(competition);
+    });
+    
+    return competitions;
+}
+
+// ==================== 提交页面逻辑 ====================
+function initSubmitPage() {
+    console.log('初始化提交页面');
+    
+    // 确保至少有一个竞赛模块
+    addCompetitionModule();
+    
+    // 绑定事件
+    const addModuleBtn = document.getElementById('addModule');
+    const awardForm = document.getElementById('awardForm');
+    const resetBtn = document.getElementById('resetBtn');
+    
+    if (addModuleBtn) {
+        addModuleBtn.addEventListener('click', () => {
+            console.log('点击添加竞赛信息按钮');
+            addCompetitionModule();
+            clearErrorSummary();
+        });
+    } else {
+        console.error('未找到添加竞赛信息按钮');
+    }
+    
+    if (awardForm) {
+        awardForm.addEventListener('submit', handleFormSubmit);
+    }
+    
+    if (resetBtn) {
+        resetBtn.addEventListener('click', handleFormReset);
+    }
+    
+    // 绑定成功弹窗事件
+    const successModal = document.getElementById('successModal');
+    if (successModal) {
+        const modalClose = successModal.querySelector('.close');
+        const resetFormBtn = document.getElementById('resetFormBtn');
+        const browseDataBtn = document.getElementById('browseDataBtn');
+        
+        if (modalClose) {
+            modalClose.addEventListener('click', () => successModal.style.display = 'none');
+        }
+        
+        if (resetFormBtn) {
+            resetFormBtn.addEventListener('click', () => {
+                successModal.style.display = 'none';
+                handleFormReset();
+            });
+        }
+        
+        if (browseDataBtn) {
+            browseDataBtn.addEventListener('click', () => {
+                window.location.href = 'browse.html';
+            });
+        }
+        
+        // 点击外部关闭
+        window.addEventListener('click', (e) => {
+            if (e.target === successModal) {
+                successModal.style.display = 'none';
+            }
+        });
+    }
+    
+    console.log('提交页面初始化完成');
+}
+
+async function handleFormSubmit(event) {
+    event.preventDefault();
+    console.log('处理表单提交');
+    
+    // 验证表单
+    if (!validateForm()) {
+        console.log('表单验证失败');
+        return;
+    }
+    
+    // 收集数据
+    const studentName = document.getElementById('name').value.trim();
+    const studentMajor = document.getElementById('major').value;
+    const competitions = collectCompetitionData();
+    
+    console.log('提交数据:', { studentName, studentMajor, competitions });
+    
+    // 显示加载状态
+    const submitBtn = document.getElementById('submitBtn');
+    const originalText = submitBtn.textContent;
+    submitBtn.textContent = '提交中...';
+    submitBtn.disabled = true;
+    
+    try {
+        const result = await window.submitAwardRecord(studentName, studentMajor, competitions);
+        console.log('提交结果:', result);
+        
+        if (result.success) {
+            document.getElementById('successModal').style.display = 'block';
+        } else {
+            alert('提交失败: ' + result.message);
+        }
+    } catch (error) {
+        console.error('提交异常:', error);
+        alert('提交过程中发生错误，请稍后重试');
+    } finally {
+        submitBtn.textContent = originalText;
+        submitBtn.disabled = false;
+    }
+}
+
+function handleFormReset() {
+    console.log('重置表单');
+    document.getElementById('awardForm').reset();
+    
+    // 清空所有竞赛模块，只保留一个
+    const modulesContainer = document.getElementById('competitionModules');
+    modulesContainer.innerHTML = '';
+    moduleCounter = 0;
+    addCompetitionModule();
+    
+    // 清空所有错误信息
+    clearErrorSummary();
+    document.querySelectorAll('.error-message').forEach(el => el.textContent = '');
+    document.querySelectorAll('.image-preview').forEach(el => {
+        el.innerHTML = '';
+        el.style.display = 'none';
+    });
+}
+
+// ==================== 浏览页面逻辑 ====================
+function initBrowsePage() {
+    console.log('初始化浏览页面');
+    
+    // 绑定事件
+    const verifyBtn = document.getElementById('verifyBtn');
+    const filterBtn = document.getElementById('filterBtn');
+    const resetFilterBtn = document.getElementById('resetFilterBtn');
+    const exportExcelBtn = document.getElementById('exportExcelBtn');
+    
+    if (verifyBtn) {
+        verifyBtn.addEventListener('click', handleAdminLogin);
+    }
+    
+    if (filterBtn) {
+        filterBtn.addEventListener('click', loadAndDisplayData);
+    }
+    
+    if (resetFilterBtn) {
+        resetFilterBtn.addEventListener('click', resetFiltersAndLoad);
+    }
+    
+    if (exportExcelBtn) {
+        exportExcelBtn.addEventListener('click', exportToExcel);
+    }
+    
+    // 初始化图片查看器
+    initImageViewer();
+    
+    console.log('浏览页面初始化完成');
+}
+
+async function handleAdminLogin() {
+    const passwordInput = document.getElementById('password').value;
+    const errorElement = document.getElementById('passwordError');
+    
+    if (!passwordInput) {
+        errorElement.textContent = '请输入密码';
+        return;
+    }
+    
+    errorElement.textContent = '';
+    
+    const verifyBtn = document.getElementById('verifyBtn');
+    verifyBtn.textContent = '验证中...';
+    verifyBtn.disabled = true;
+    
+    try {
+        const result = await window.verifyAdminPassword(passwordInput);
+        
+        if (result.success) {
+            document.getElementById('passwordSection').style.display = 'none';
+            document.getElementById('browseSection').style.display = 'block';
+            loadAndDisplayData();
+        } else {
+            errorElement.textContent = result.message;
+        }
+    } catch (error) {
+        console.error('登录异常:', error);
+        errorElement.textContent = '验证过程出错，请重试';
+    } finally {
+        verifyBtn.textContent = '验证';
+        verifyBtn.disabled = false;
+    }
+}
+
+function getCurrentFilters() {
+    return {
+        name: document.getElementById('filterName')?.value || '',
+        competition: document.getElementById('filterCompetition')?.value || '',
+        level: document.getElementById('filterLevel')?.value || '',
+        grade: document.getElementById('filterGrade')?.value || '',
+        award: document.getElementById('filterAward')?.value || ''
+    };
+}
+
+async function loadAndDisplayData() {
+    const filters = getCurrentFilters();
+    console.log('加载数据，筛选条件:', filters);
+    
+    const tableBody = document.querySelector('#awardTable tbody');
+    const noDataMsg = document.getElementById('noDataMessage');
+    const resultCountSpan = document.querySelector('#resultCount span');
+    
+    if (!tableBody) {
+        console.error('未找到表格tbody');
+        return;
+    }
+    
+    tableBody.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:20px;">加载中...</td></tr>';
+    
+    const data = await window.fetchFilteredData(filters);
+    
+    tableBody.innerHTML = '';
+    resultCountSpan.textContent = data.length;
+    
+    if (data.length === 0) {
+        if (noDataMsg) noDataMsg.style.display = 'block';
+        return;
+    }
+    
+    if (noDataMsg) noDataMsg.style.display = 'none';
+    
+    data.forEach(item => {
+        const row = document.createElement('tr');
+        let certificateCell = '无';
+        
+        if (item.certificate) {
+            certificateCell = `<img src="${item.certificate}" alt="证书" class="certificate-img" onclick="viewImage('${item.certificate}')">`;
+        }
+        
+        row.innerHTML = `
+            <td>${escapeHtml(item.name)}</td>
+            <td>${escapeHtml(item.major)}</td>
+            <td>${escapeHtml(item.grade)}</td>
+            <td>${escapeHtml(item.competition)}</td>
+            <td>${escapeHtml(item.level)}</td>
+            <td>${escapeHtml(item.award)}</td>
+            <td>${certificateCell}</td>
+            <td>${item.submitTime}</td>
+            <td><button class="action-btn" onclick="editRecord(${item.recordId})">修改</button></td>
+            <td><button class="delete-btn" onclick="confirmDelete(${item.recordId})">删除</button></td>
+        `;
+        tableBody.appendChild(row);
+    });
+}
+
 function resetFiltersAndLoad() {
-  document.getElementById('filterName').value = '';
-  document.getElementById('filterCompetition').value = '';
-  document.getElementById('filterLevel').value = '';
-  document.getElementById('filterGrade').value = '';
-  document.getElementById('filterAward').value = '';
-  loadAndDisplayData();
+    ['filterName', 'filterCompetition', 'filterLevel', 'filterGrade', 'filterAward'].forEach(id => {
+        const element = document.getElementById(id);
+        if (element) element.value = '';
+    });
+    loadAndDisplayData();
 }
 
-// 导出Excel功能（需要引入SheetJS库）
 function exportToExcel() {
-  // ... 这里可以是你原有的 exportToExcel 函数代码 ...
-  alert('导出功能需要额外配置，当前版本暂未启用。');
+    alert('导出Excel功能正在开发中...');
 }
 
-// 安全地转义HTML，防止XSS攻击
-function escapeHtml(text) {
-  const div = document.createElement('div');
-  div.textContent = text;
-  return div.innerHTML;
-}
-
-// 图片查看器函数
 function initImageViewer() {
-  // ... 这里是你原有的 initImageViewer 函数代码 ...
+    const imageViewer = document.getElementById('imageViewer');
+    if (!imageViewer) return;
+    
+    const closeBtn = imageViewer.querySelector('.image-viewer-close');
+    closeBtn.addEventListener('click', () => {
+        imageViewer.style.display = 'none';
+    });
+    
+    imageViewer.addEventListener('click', (e) => {
+        if (e.target === imageViewer) {
+            imageViewer.style.display = 'none';
+        }
+    });
 }
+
 function viewImage(src) {
-  // ... 这里是你原有的 viewImage 函数代码 ...
+    const imageViewer = document.getElementById('imageViewer');
+    const viewerImage = document.getElementById('viewerImage');
+    
+    if (imageViewer && viewerImage) {
+        viewerImage.src = src;
+        imageViewer.style.display = 'flex';
+    }
 }
 
-// 以下函数需要在supabase.js中实现对应功能后才能使用
 function editRecord(recordId) {
-  alert('修改功能正在开发中，记录ID: ' + recordId);
-  // 未来实现：弹出模态框，加载当前记录数据，调用 window.updateAwardRecord
-}
-function confirmDelete(recordId) {
-  if (confirm('确定要删除这条记录吗？此操作不可撤销。')) {
-    deleteRecord(recordId);
-  }
-}
-async function deleteRecord(recordId) {
-  const result = await window.deleteAwardRecord(recordId);
-  alert(result.message);
-  if (result.success) {
-    loadAndDisplayData(); // 刷新列表
-  }
+    alert('修改功能正在开发中，记录ID: ' + recordId);
 }
 
-console.log('前端交互脚本加载完毕。');
+function confirmDelete(recordId) {
+    if (confirm('确定要删除这条记录吗？此操作不可撤销。')) {
+        deleteRecord(recordId);
+    }
+}
+
+async function deleteRecord(recordId) {
+    const result = await window.deleteAwardRecord(recordId);
+    alert(result.message);
+    if (result.success) {
+        loadAndDisplayData();
+    }
+}
+
+// ==================== 页面初始化 ====================
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('DOM加载完成，页面标题:', document.title);
+    
+    if (document.title.includes('竞赛获奖情况统计')) {
+        initSubmitPage();
+    } else if (document.title.includes('竞赛获奖数据浏览')) {
+        initBrowsePage();
+    }
+    
+    console.log('页面初始化完成');
+});
+
+console.log('前端交互脚本加载完毕');
