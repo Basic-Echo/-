@@ -5,11 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>竞赛获奖情况统计</title>
     <link rel="stylesheet" href="style.css">
-    <!-- 引入 Supabase 客户端库 -->
+    
+    <!-- 正确的引入顺序 -->
+    <!-- 1. 先引入Supabase客户端库 -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <!-- 注意引入顺序：先supabase.js，后script.js -->
-    <script src="supabase.js" defer></script>
-    <script src="script.js" defer></script>
+    <!-- 2. 再引入我们的API模块 -->
+    <script src="supabase.js"></script>
+    <!-- 3. 最后引入页面交互逻辑 -->
+    <script src="script.js"></script>
 </head>
 <body>
     <div class="container">
