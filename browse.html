@@ -5,12 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>竞赛获奖数据浏览</title>
     <link rel="stylesheet" href="style.css">
-    <!-- 引入 Supabase 客户端库和Excel导出库 -->
+    
+    <!-- 正确的引入顺序 -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
-    <!-- 注意引入顺序 -->
-    <script src="supabase.js" defer></script>
-    <script src="script.js" defer></script>
+    <script src="supabase.js"></script>
+    <script src="script.js"></script>
 </head>
 <body>
     <div class="container">
